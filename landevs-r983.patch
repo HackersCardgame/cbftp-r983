@@ -1,0 +1,242 @@
+diff -rupN src-old/phasemod.cpp src/phasemod.cpp
+--- src-old/phasemod.cpp	1970-01-01 01:00:00.000000000 +0100
++++ src/phasemod.cpp	2019-01-16 07:49:20.279031778 +0100
+@@ -0,0 +1,113 @@
++#include "phasemod.h"
++#include "path.h"
++#include "section.h"
++
++
++#include <string>
++#include <sstream>
++#include <algorithm>  //for count
++
++
++int PhaseMod::nEqualParts(const std::string & sectionname1, const std::string & sectionname2)       //LANDEV: TV.X264.1080p.CLS.DE.3D
++{
++  int matchedparts = 0;
++  std::istringstream ss1(sectionname1);
++  std::string token1;
++
++  std::string featuredSection = "."+sectionname2+".";
++
++  while(std::getline(ss1, token1, '.'))  //go through the section features eg TV.1080p
++  {
++  if (featuredSection.find("."+token1+".") != std::string::npos)
++    {
++      matchedparts++;
++    }
++  }
++  return matchedparts;
++}
++
++
++
++  bool PhaseMod::isSubSection(const std::string & sectionname, const  std::map<std::string, Path> sections) {      //LANDEV: TV.X264.1080p.CLS.DE.3D
++
++  for (int backcounter=10; backcounter>0; backcounter--)
++  {
++    std::map<std::string, Path>::const_iterator it;
++    for (it = sections.begin(); it!= sections.end(); it++)   //parse sections from site
++    {
++      int nFeatures = std::count(it->first.begin(), it->first.end(), '.') + 1; //how many features splitted by a point -TV.1080p.DE.3D.CLS-
++      if (nFeatures == backcounter)
++      {
++        int matchingCount = PhaseMod::nEqualParts(it->first, sectionname);
++        if (matchingCount == nFeatures)
++          return true;
++      }
++    }
++  }
++  return false;
++}
++
++
++
++
++ Path PhaseMod::getSubSectionPath(const std::string & sectionname, const  std::map<std::string, Path> sections) {
++
++  for (int backcounter=10; backcounter>0; backcounter--)
++  {
++    std::map<std::string, Path>::const_iterator it;
++    for (it = sections.begin(); it!= sections.end(); it++)   //parse sections from site
++    {
++      int nFeatures = std::count(it->first.begin(), it->first.end(), '.') + 1; //how many features splitted by a point -TV.1080p.DE.3D.CLS-
++      if (nFeatures == backcounter)
++      {
++        int matchingCount = PhaseMod::nEqualParts(it->first, sectionname);
++        if (matchingCount == nFeatures)
++          return it->second;
++      }
++    }
++  }
++  return "/";
++}
++
++
++Section * PhaseMod::getGlobalSection(const std::string & sectionname, std::unordered_map<std::string, Section> & sections) {
++
++  for (int backcounter=10; backcounter>0; backcounter--)
++  {
++    //std::map<std::string, Section>::iterator it;
++    for (auto it = sections.begin(); it!= sections.end(); it++)   //parse sections from site
++    {
++      int nFeatures = std::count(it->first.begin(), it->first.end(), '.') + 1; //how many features splitted by a point -TV.1080p.DE.3D.CLS-
++      if (nFeatures == backcounter)
++      {
++        int matchingCount = PhaseMod::nEqualParts(it->first, sectionname);
++        if (matchingCount == nFeatures)
++          return & it->second;
++      }
++    }
++   }
++   return NULL;
++ }
++///added by LANDEV
++
++
++/*
++std::string PhaseMod::getSectionString(const std::string & sectionname) {           //LANDEV: TV.X264.1080p.CLS.DE.3D
++
++  for (int backcounter=10; backcounter>0; backcounter--)
++  {
++    std::map<std::string, Path>::const_iterator it;
++    for (it = sections.begin(); it!= sections.end(); it++)   //parse sections from site
++    {
++      int nFeatures = std::count(it->first.begin(), it->first.end(), '.') + 1; //how many features splitted by a point -TV.1080p.DE.3D.CLS-
++      if (nFeatures == backcounter)
++      {
++        int matchingCount = nEqualParts(it->first, sectionname);
++        if (matchingCount == nFeatures)
++          return it->first;
++      }
++    }
++  }
++  return "NOT FOUND";
++ }
++*/
+diff -rupN src-old/phasemod.h src/phasemod.h
+--- src-old/phasemod.h	1970-01-01 01:00:00.000000000 +0100
++++ src/phasemod.h	2019-01-16 07:49:20.279031778 +0100
+@@ -0,0 +1,20 @@
++
++#include <string>
++#include <map>
++#include <unordered_map>
++
++#include "path.h"
++#include "section.h"
++
++class PhaseMod {
++public:
++  static int nEqualParts(const std::string & sectionname, const std::string & sectionname2);
++  static bool isSubSection(const std::string & sectionname, const  std::map<std::string, Path> sections);
++  static Section * getGlobalSection(const std::string & sectionname, std::unordered_map<std::string, Section> & sections);
++  static Path getSubSectionPath(const std::string & sectionname, const  std::map<std::string, Path> sections);
++  //static std::string Site::getSectionString(const std::string & sectionname);
++private:
++};
++
++
++
+diff -rupN src-old/remotecommandhandler.cpp src/remotecommandhandler.cpp
+--- src-old/remotecommandhandler.cpp	2019-01-16 10:18:07.816882166 +0100
++++ src/remotecommandhandler.cpp	2019-01-16 07:49:20.279031778 +0100
+@@ -2,6 +2,7 @@
+ 
+ #include <vector>
+ #include <list>
++#include <iostream>                                                             //added by LANDEV
+ 
+ #include "core/tickpoke.h"
+ #include "core/iomanager.h"
+@@ -189,6 +190,23 @@ void RemoteCommandHandler::handleMessage
+   else if (command == "idle") {
+     commandIdle(remainder);
+   }
++  else if (command == "setdir") {
++    std::shared_ptr<Site> s = global->getSiteManager()->getSite(tokens[4]);
++    if(s == nullptr)
++    {
++      global->getEventLog()->log("ERROR Setting dir", tokens[2] + " to " + tokens[3] + " on SITE " + tokens[4] );
++      global->getEventLog()->log("just ADDING Site", tokens[4]);
++      const std::string & newSite = tokens[4];
++      std::shared_ptr<Site> snew(new Site(newSite));
++      global->getSiteManager()->addSite(snew);
++      snew->addSection(tokens[2], tokens[3]);
++    }
++    else
++    {
++      global->getEventLog()->log("Setting dir", tokens[2] + " to " + tokens[3] + " on SITE " + tokens[4] );
++      s->addSection(tokens[2], tokens[3]);
++    }
++  }
+   else if (command == "abort") {
+     commandAbort(remainder);
+   }
+diff -rupN src-old/sectionmanager.cpp src/sectionmanager.cpp
+--- src-old/sectionmanager.cpp	2019-01-16 10:18:07.820882151 +0100
++++ src/sectionmanager.cpp	2019-01-16 07:49:20.279031778 +0100
+@@ -3,6 +3,8 @@
+ #include "globalcontext.h"
+ #include "sitemanager.h"
+ 
++#include "phasemod.h"                                                           //added by LANDEV
++
+ std::unordered_map<std::string, Section>::const_iterator SectionManager::begin() const {
+   return sections.begin();
+ }
+@@ -16,11 +18,12 @@ size_t SectionManager::size() const {
+ }
+ 
+ Section * SectionManager::getSection(const std::string & name) {
+-  auto it = sections.find(name);
+-  if (it != sections.end()) {
+-    return &it->second;
+-  }
+-  return NULL;
++  return PhaseMod::getGlobalSection(name, sections);
++//  auto it = sections.find(name);
++//  if (it != sections.end()) {
++//    return &it->second;
++//  }
++//  return NULL;
+ }
+ 
+ bool SectionManager::addSection(const std::string & name) {
+diff -rupN src-old/site.cpp src/site.cpp
+--- src-old/site.cpp	2019-01-16 10:18:07.820882151 +0100
++++ src/site.cpp	2019-01-16 07:49:20.283031766 +0100
+@@ -5,6 +5,8 @@
+ #include "globalcontext.h"
+ #include "sectionmanager.h"
+ 
++#include "phasemod.h"                                                           //added by LANDEV
++
+ Site::Site() : skiplist(global->getSkipList()) {
+ 
+ }
+@@ -313,15 +315,17 @@ unsigned int Site::sectionsSize() const
+ }
+ 
+ const Path Site::getSectionPath(const std::string & sectionname) const {
+-  std::map<std::string, Path>::const_iterator it = sections.find(sectionname);
+-  if (it == sections.end()) return "/";
+-  return it->second;
++   //std::map<std::string, Path>::const_iterator it = sections.find(sectionname);
++   //if (it == sections.end()) return "/";
++   //return it->second;
++   return PhaseMod::getSubSectionPath(sectionname, sections);
+ }
+ 
+ bool Site::hasSection(const std::string & sectionname) const {
+-  std::map<std::string, Path>::const_iterator it = sections.find(sectionname);
+-  if (it == sections.end()) return false;
+-  return true;
++   return PhaseMod::isSubSection(sectionname, sections);                                               //ADDED BY LANDEV
++   //std::map<std::string, Path>::const_iterator it = sections.find(sectionname);
++   //if (it == sections.end()) return false;
++   //return true;
+ }
+ 
+ std::string Site::getAddress() const {
